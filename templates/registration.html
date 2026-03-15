@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station 1 - Registration</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Station 1: Registration</h1>
+
+        <!-- Status messages -->
+        <div id="status" class="status hidden"></div>
+
+        <form id="regForm">
+            <!-- ── Patient Details ─────────────────────────────── -->
+            <h2>Patient Details</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="name">Full Name (as in passport)</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="passport_number">Passport Number</label>
+                    <input type="text" id="passport_number" name="passport_number" required>
+                </div>
+                <div class="form-group">
+                    <label for="sex">Sex</label>
+                    <select id="sex" name="sex" required>
+                        <option value="">-- Select --</option>
+                        <option value="M">M - Male</option>
+                        <option value="F">F - Female</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="dob">Date of Birth</label>
+                    <input type="date" id="dob" name="dob" required>
+                </div>
+                <div class="form-group">
+                    <label for="nationality">Nationality</label>
+                    <input type="text" id="nationality" name="nationality" required>
+                </div>
+            </div>
+
+            <!-- ── Clinic Details (persistent) ─────────────────── -->
+            <h2>Clinic Details</h2>
+            <p class="hint">These fields are saved automatically and carry over to the next patient.</p>
+            <div class="form-grid">
+                <div class="form-group persistent">
+                    <label for="clinic_hci"><strong>Clinic HCI Code</strong></label>
+                    <input type="text" id="clinic_hci" name="clinic_hci" class="bold-input">
+                </div>
+                <div class="form-group persistent">
+                    <label for="doctor_mcr"><strong>Doctor MCR Number</strong></label>
+                    <input type="text" id="doctor_mcr" name="doctor_mcr" class="bold-input">
+                </div>
+                <div class="form-group persistent">
+                    <label for="test_to_order"><strong>Test to be Ordered</strong></label>
+                    <input type="text" id="test_to_order" name="test_to_order" class="bold-input">
+                </div>
+                <div class="form-group persistent">
+                    <label for="corporate_name"><strong>Corporate Name</strong></label>
+                    <input type="text" id="corporate_name" name="corporate_name" class="bold-input">
+                </div>
+            </div>
+
+            <!-- ── Doctor Name (persistent, for Google Sheet) ──── -->
+            <div class="form-grid">
+                <div class="form-group persistent">
+                    <label for="doctor_name"><strong>Doctor Name</strong></label>
+                    <input type="text" id="doctor_name" name="doctor_name" class="bold-input">
+                </div>
+            </div>
+
+            <button type="submit" id="saveBtn" class="btn-save">Save &amp; Print Labels</button>
+        </form>
+    </div>
+
+    <script>
+        // ── Persistent fields: load from localStorage ─────────────
+        const persistentFields = [
+            "clinic_hci", "doctor_mcr", "test_to_order", "corporate_name", "doctor_name"
+        ];
+
+        // Load saved values on page load
+        persistentFields.forEach(field => {
+            const saved = localStorage.getItem("clinic_" + field);
+            if (saved) {
+                document.getElementById(field).value = saved;
+            }
+        });
+
+        // Save persistent fields whenever they change
+        persistentFields.forEach(field => {
+            document.getElementById(field).addEventListener("input", () => {
+                localStorage.setItem("clinic_" + field, document.getElementById(field).value);
+            });
+        });
+
+        // ── MRZ auto-fill from URL parameters ──────────────────
+        // The local MRZ watcher opens the browser with ?name=...&passport_number=...
+        const urlParams = new URLSearchParams(window.location.search);
+        const mrzFields = ["name", "passport_number", "sex", "dob", "nationality"];
+        mrzFields.forEach(field => {
+            const val = urlParams.get(field);
+            if (val) {
+                const el = document.getElementById(field);
+                if (field === "sex") {
+                    // Set the dropdown
+                    el.value = val.toUpperCase();
+                } else {
+                    el.value = val;
+                }
+            }
+        });
+        // Clear URL params after filling (keeps URL clean)
+        if (urlParams.toString()) {
+            window.history.replaceState({}, "", "/");
+        }
+
+        // ── Form submission ───────────────────────────────────────
+        document.getElementById("regForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById("saveBtn");
+            btn.disabled = true;
+            btn.textContent = "Saving...";
+
+            const formData = {
+                name: document.getElementById("name").value.trim(),
+                passport_number: document.getElementById("passport_number").value.trim().toUpperCase(),
+                sex: document.getElementById("sex").value,
+                dob: document.getElementById("dob").value,
+                nationality: document.getElementById("nationality").value.trim().toUpperCase(),
+                clinic_hci: document.getElementById("clinic_hci").value.trim(),
+                doctor_mcr: document.getElementById("doctor_mcr").value.trim(),
+                test_to_order: document.getElementById("test_to_order").value.trim(),
+                corporate_name: document.getElementById("corporate_name").value.trim(),
+                doctor_name: document.getElementById("doctor_name").value.trim(),
+            };
+
+            try {
+                const resp = await fetch("/api/save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(formData),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.error || "Save failed");
+                }
+
+                // Check if Google Sheets was successful
+                const sheetsStatus = resp.headers.get("X-Sheets-Status");
+
+                // Get the PDF blob and open for printing
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+
+                // Open PDF in new window and trigger print
+                const printWindow = window.open(url, "_blank");
+                if (printWindow) {
+                    printWindow.addEventListener("load", () => {
+                        printWindow.print();
+                    });
+                } else {
+                    // If popup blocked, download instead
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "labels.pdf";
+                    a.click();
+                }
+
+                // Show success message
+                showStatus(
+                    sheetsStatus === "ok"
+                        ? "Saved! Labels sent to printer. Google Sheet updated."
+                        : "Saved! Labels sent to printer. (Google Sheet error - check settings)",
+                    sheetsStatus === "ok" ? "success" : "warning"
+                );
+
+                // Clear patient fields (but keep persistent clinic fields)
+                document.getElementById("name").value = "";
+                document.getElementById("passport_number").value = "";
+                document.getElementById("sex").value = "";
+                document.getElementById("dob").value = "";
+                document.getElementById("nationality").value = "";
+
+                // Focus back to name field for next patient
+                document.getElementById("name").focus();
+
+            } catch (err) {
+                showStatus("Error: " + err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Save & Print Labels";
+            }
+        });
+
+        function showStatus(msg, type) {
+            const el = document.getElementById("status");
+            el.textContent = msg;
+            el.className = "status " + type;
+            el.classList.remove("hidden");
+            setTimeout(() => el.classList.add("hidden"), 8000);
+        }
+    </script>
+</body>
+</html>

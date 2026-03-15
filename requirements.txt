@@ -1,0 +1,9 @@
+Flask==3.0.0
+gunicorn==21.2.0
+qrcode[pil]==7.4.2
+reportlab==4.1.0
+gspread==6.0.0
+google-auth==2.25.2
+Pillow==10.2.0
+watchdog==3.0.0
+PyMuPDF==1.23.8

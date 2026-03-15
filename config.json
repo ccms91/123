@@ -1,0 +1,18 @@
+{
+  "google_credentials_file": "credentials.json",
+  "spreadsheet_name": "Patient Data",
+  "worksheet_name": "Sheet1",
+  "columns": {
+    "corporate": "Corporate",
+    "passport": "Passport",
+    "full_name": "Full Name",
+    "dob": "DOB",
+    "nationality": "Nationality",
+    "gender": "Gender",
+    "status": "Status"
+  },
+  "carevender_url": "https://carevender.app/union/patient-details-express",
+  "check_interval_minutes": 5,
+  "browser_profile_dir": "C:\\carevender_profile",
+  "headless": false
+}

@@ -7,6 +7,9 @@ import os
 import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
+from dotenv import load_dotenv
+
+load_dotenv()  # loads .env file when running locally (no-op on Render)
 from services.label_generator import generate_labels_pdf
 from services.google_sheets import append_patient_to_sheet, update_patient_in_sheet, get_patient_from_sheet
 

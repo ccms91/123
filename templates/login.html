@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Health Screening</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.4rem;
+      color: #1a202c;
+      margin-bottom: 0.3rem;
+    }
+    p.sub {
+      font-size: 0.9rem;
+      color: #718096;
+      margin-bottom: 1.8rem;
+    }
+    label {
+      display: block;
+      text-align: left;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.4rem;
+    }
+    input[type="password"] {
+      width: 100%;
+      padding: 0.65rem 0.9rem;
+      font-size: 1rem;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="password"]:focus {
+      border-color: #4299e1;
+    }
+    .error {
+      margin-top: 0.7rem;
+      color: #e53e3e;
+      font-size: 0.85rem;
+    }
+    button {
+      margin-top: 1.4rem;
+      width: 100%;
+      padding: 0.75rem;
+      background: #3182ce;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #2b6cb0; }
+    button:active { background: #2c5282; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Health Screening</h1>
+    <p class="sub">Enter the clinic password to continue</p>
+    <form method="POST">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autofocus autocomplete="current-password" />
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+      <button type="submit">Log In</button>
+    </form>
+  </div>
+</body>
+</html>

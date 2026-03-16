@@ -5,8 +5,9 @@ Main Flask application
 
 import os
 import json
-from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_file
+from datetime import datetime, timedelta
+from functools import wraps
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
 from dotenv import load_dotenv
 
 load_dotenv()  # loads .env file when running locally (no-op on Render)
@@ -22,13 +23,43 @@ from services.google_sheets import append_patient_to_sheet, update_patient_in_sh
 app = Flask(__name__)
 
 # ── Configuration ──────────────────────────────────────────────────────────
-# Google Sheets credentials file path (set via environment variable)
+app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
+app.permanent_session_lifetime = timedelta(hours=24)
+app.config["APP_PASSWORD"] = os.environ.get("APP_PASSWORD", "")
 app.config["GOOGLE_CREDS_FILE"] = os.environ.get("GOOGLE_CREDS_FILE", "credentials.json")
 app.config["GOOGLE_SHEET_NAME"] = os.environ.get("GOOGLE_SHEET_NAME", "HealthScreening")
 
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("authenticated"):
+            return redirect(url_for("login", next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
 # ── Routes ─────────────────────────────────────────────────────────────────
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        if request.form.get("password") == app.config["APP_PASSWORD"]:
+            session.permanent = True
+            session["authenticated"] = True
+            return redirect(request.args.get("next") or url_for("index"))
+        error = "Incorrect password."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.route("/")
+@login_required
 def index():
     """Serve the registration form."""
     return render_template("registration.html")
@@ -96,6 +127,7 @@ def save_patient():
 
 
 @app.route("/station2")
+@login_required
 def station2():
     return render_template("station2.html")
 
@@ -133,6 +165,7 @@ def station2_save():
 
 
 @app.route("/station3b")
+@login_required
 def station3b():
     return render_template("station3b.html")
 

@@ -10,7 +10,7 @@ echo.
 
 :: Install computer-vision packages (only needed on this PC)
 echo Checking urine watcher dependencies...
-pip install opencv-python pyzbar numpy -q
+pip install opencv-python numpy -q
 if errorlevel 1 (
     echo.
     echo ERROR: Could not install required packages.

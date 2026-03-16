@@ -55,7 +55,6 @@ from datetime import datetime
 
 import cv2
 import numpy as np
-from pyzbar.pyzbar import decode as pyzbar_decode
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import gspread
@@ -193,17 +192,16 @@ def write_urine_results(row_index, protein, sugar, pregnancy=None):
 
 def read_qr(image_bgr):
     """Decode the first QR code found in the image. Returns the string or None."""
-    decoded = pyzbar_decode(image_bgr)
-    for obj in decoded:
-        return obj.data.decode("utf-8")
+    detector = cv2.QRCodeDetector()
+    data, _, _ = detector.detectAndDecode(image_bgr)
+    if data:
+        return data
     # Try grayscale + mild sharpen if colour scan failed
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharpened = cv2.filter2D(gray, -1, kernel)
-    decoded = pyzbar_decode(sharpened)
-    for obj in decoded:
-        return obj.data.decode("utf-8")
-    return None
+    data, _, _ = detector.detectAndDecode(sharpened)
+    return data if data else None
 
 
 def sample_lab_colour(image_bgr, cx, cy, radius):

@@ -16,6 +16,8 @@ load_dotenv()  # loads .env file when running locally (no-op on Render)
 _creds_json = os.environ.get("GOOGLE_CREDS_JSON", "")
 print(f"[STARTUP] GOOGLE_CREDS_JSON set: {bool(_creds_json)} (length: {len(_creds_json)})")
 print(f"[STARTUP] GOOGLE_SHEET_NAME: {os.environ.get('GOOGLE_SHEET_NAME', '(not set)')}")
+_app_pw = os.environ.get("APP_PASSWORD", "")
+print(f"[STARTUP] APP_PASSWORD set: {bool(_app_pw)} (length: {len(_app_pw)})")
 
 from services.label_generator import generate_labels_pdf
 from services.google_sheets import append_patient_to_sheet, update_patient_in_sheet, get_patient_from_sheet
@@ -44,7 +46,7 @@ def login_required(f):
 def login():
     error = None
     if request.method == "POST":
-        if request.form.get("password") == app.config["APP_PASSWORD"]:
+        if request.form.get("password", "").strip() == app.config["APP_PASSWORD"].strip():
             session.permanent = True
             session["authenticated"] = True
             return redirect(request.args.get("next") or url_for("index"))

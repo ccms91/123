@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
 from services.label_generator import generate_labels_pdf
-from services.google_sheets import append_patient_to_sheet
+from services.google_sheets import append_patient_to_sheet, update_patient_in_sheet
 
 app = Flask(__name__)
 
@@ -84,6 +84,43 @@ def save_patient():
     # Add header to tell frontend if sheets succeeded
     response.headers["X-Sheets-Status"] = "ok" if sheets_ok else "error"
     return response
+
+
+@app.route("/station2")
+def station2():
+    return render_template("station2.html")
+
+
+@app.route("/api/station2/save", methods=["POST"])
+def station2_save():
+    """Update Height and Weight for a patient in Google Sheet."""
+    data = request.get_json()
+    passport = data.get("passport_number", "").strip()
+    if not passport:
+        return jsonify({"error": "No passport number provided"}), 400
+
+    updates = {}
+    if data.get("height"):
+        updates["Height"] = data["height"]
+    if data.get("weight"):
+        updates["Weight"] = data["weight"]
+
+    if not updates:
+        return jsonify({"error": "No measurements provided"}), 400
+
+    try:
+        found = update_patient_in_sheet(
+            passport,
+            updates,
+            creds_file=app.config["GOOGLE_CREDS_FILE"],
+            sheet_name=app.config["GOOGLE_SHEET_NAME"],
+        )
+        if not found:
+            return jsonify({"error": f"Patient '{passport}' not found in sheet. Register first at Station 1."}), 404
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print(f"[ERROR] Station 2 save: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/mrz", methods=["POST"])

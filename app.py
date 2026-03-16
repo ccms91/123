@@ -162,18 +162,7 @@ def station3b_save():
     if not passport:
         return jsonify({"error": "No passport number provided"}), 400
 
-    vision_right = data.get("vision_right", "").strip()
-    vision_left  = data.get("vision_left",  "").strip()
-
-    # Combine both eyes into one field: "R:6/6 L:6/9"
-    if vision_right and vision_left:
-        vision_str = f"R:{vision_right} L:{vision_left}"
-    elif vision_right:
-        vision_str = f"R:{vision_right}"
-    elif vision_left:
-        vision_str = f"L:{vision_left}"
-    else:
-        vision_str = ""
+    vision_str = data.get("vision", "").strip()
 
     updates = {}
     if data.get("systolic_bp"):

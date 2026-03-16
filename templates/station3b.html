@@ -8,30 +8,49 @@
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="/static/qr_scanner.js"></script>
     <style>
-        .snellen-row {
+        /* BP — stay 2-col even on small screens */
+        .bp-grid {
             display: grid;
-            grid-template-columns: 80px 1fr 1fr;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        /* Vision — quick-tap buttons */
+        .vision-buttons {
+            display: flex;
             gap: 10px;
-            align-items: center;
-            margin-bottom: 12px;
+            margin: 12px 0 10px;
         }
-        .snellen-row label {
-            font-size: 14px;
-            color: #555;
-            font-weight: 600;
+        .btn-vision {
+            flex: 1;
+            padding: 18px 8px;
+            font-size: 22px;
+            font-weight: bold;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: #fff;
+            color: #333;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
         }
-        .snellen-row select,
-        .snellen-row input[type="text"] {
-            padding: 10px 12px;
+        .btn-vision.selected {
+            background: #1a73e8;
+            border-color: #1a73e8;
+            color: #fff;
+        }
+        .btn-vision:active { transform: scale(0.97); }
+        #visionCustom {
+            width: 100%;
+            padding: 12px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 16px;
+            box-sizing: border-box;
         }
-        .snellen-row select:focus,
-        .snellen-row input[type="text"]:focus {
+        #visionCustom:focus {
             outline: none;
             border-color: #1a73e8;
-            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
         }
         .btn-speak {
             display: block;
@@ -105,7 +124,7 @@
 
         <!-- ── Blood Pressure ─────────────────────────────────── -->
         <h2>Blood Pressure</h2>
-        <div class="form-grid">
+        <div class="bp-grid">
             <div class="form-group">
                 <label for="systolic">Systolic (mmHg)</label>
                 <input type="number" id="systolic" placeholder="e.g. 120"
@@ -122,35 +141,15 @@
 
         <!-- ── Snellen Vision ─────────────────────────────────── -->
         <h2>Snellen Vision Acuity</h2>
-        <p class="hint">Select result per eye. Choose "Other" to type a custom value.</p>
+        <p class="hint">Both eyes. Tap a result or type a custom value below.</p>
 
-        <!-- Right eye -->
-        <div class="snellen-row">
-            <label>Right Eye</label>
-            <select id="visionRightSelect" onchange="onSnellenChange('right')">
-                <option value="">-- Select --</option>
-                <option value="6/6">6/6</option>
-                <option value="6/9">6/9</option>
-                <option value="6/12">6/12</option>
-                <option value="other">Other…</option>
-            </select>
-            <input type="text" id="visionRightCustom" placeholder="e.g. 6/18"
-                class="hidden">
+        <div class="vision-buttons">
+            <button type="button" class="btn-vision" id="vBtn_6_6"  onclick="selectVision('6/6')">6/6</button>
+            <button type="button" class="btn-vision" id="vBtn_6_9"  onclick="selectVision('6/9')">6/9</button>
+            <button type="button" class="btn-vision" id="vBtn_6_12" onclick="selectVision('6/12')">6/12</button>
         </div>
-
-        <!-- Left eye -->
-        <div class="snellen-row">
-            <label>Left Eye</label>
-            <select id="visionLeftSelect" onchange="onSnellenChange('left')">
-                <option value="">-- Select --</option>
-                <option value="6/6">6/6</option>
-                <option value="6/9">6/9</option>
-                <option value="6/12">6/12</option>
-                <option value="other">Other…</option>
-            </select>
-            <input type="text" id="visionLeftCustom" placeholder="e.g. 6/18"
-                class="hidden">
-        </div>
+        <input type="text" id="visionCustom" placeholder="Other (e.g. 6/18)"
+            oninput="onVisionCustomInput()" autocomplete="off">
 
         <hr class="section-divider">
 
@@ -335,28 +334,30 @@ function updateSpeakLabel() {
     document.getElementById("speakLangLabel").textContent = `Language: ${script.name}`;
 }
 
-// ── Snellen select/custom toggle ───────────────────────────────────────
-function onSnellenChange(eye) {
-    const sel    = document.getElementById(`vision${cap(eye)}Select`);
-    const custom = document.getElementById(`vision${cap(eye)}Custom`);
-    if (sel.value === "other") {
-        custom.classList.remove("hidden");
-        custom.focus();
-    } else {
-        custom.classList.add("hidden");
-        custom.value = "";
-    }
+// ── Snellen vision buttons ─────────────────────────────────────────────
+let selectedVision = "";
+
+function selectVision(val) {
+    selectedVision = val;
+    ["6/6","6/9","6/12"].forEach(v => {
+        document.getElementById("vBtn_" + v.replace("/","_"))
+            .classList.toggle("selected", v === val);
+    });
+    document.getElementById("visionCustom").value = "";
 }
 
-function getSnellenValue(eye) {
-    const sel = document.getElementById(`vision${cap(eye)}Select`).value;
-    if (sel === "other") {
-        return document.getElementById(`vision${cap(eye)}Custom`).value.trim();
-    }
-    return sel;
+function onVisionCustomInput() {
+    selectedVision = "";
+    ["6/6","6/9","6/12"].forEach(v => {
+        document.getElementById("vBtn_" + v.replace("/","_"))
+            .classList.remove("selected");
+    });
 }
 
-function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function getVisionValue() {
+    const custom = document.getElementById("visionCustom").value.trim();
+    return custom || selectedVision;
+}
 
 // ── 3(c) Snellen TTS ───────────────────────────────────────────────────
 function speakSnellenInstructions() {
@@ -401,10 +402,9 @@ function speakSnellenInstructions() {
 async function saveData() {
     const systolic  = document.getElementById("systolic").value.trim();
     const diastolic = document.getElementById("diastolic").value.trim();
-    const visionR   = getSnellenValue("right");
-    const visionL   = getSnellenValue("left");
+    const vision    = getVisionValue();
 
-    if (!systolic && !diastolic && !visionR && !visionL) {
+    if (!systolic && !diastolic && !vision) {
         showStatus("Please enter at least one measurement.", "error");
         return;
     }
@@ -421,8 +421,7 @@ async function saveData() {
                 passport_number: currentPassport,
                 systolic_bp:  systolic,
                 diastolic_bp: diastolic,
-                vision_right: visionR,
-                vision_left:  visionL,
+                vision:       vision,
             }),
         });
         const result = await resp.json();
@@ -445,12 +444,11 @@ function resetForm() {
     window.speechSynthesis && window.speechSynthesis.cancel();
 
     ["systolic","diastolic"].forEach(id => document.getElementById(id).value = "");
-    ["Right","Left"].forEach(eye => {
-        document.getElementById(`vision${eye}Select`).value = "";
-        const custom = document.getElementById(`vision${eye}Custom`);
-        custom.value = "";
-        custom.classList.add("hidden");
+    selectedVision = "";
+    ["6/6","6/9","6/12"].forEach(v => {
+        document.getElementById("vBtn_" + v.replace("/","_")).classList.remove("selected");
     });
+    document.getElementById("visionCustom").value = "";
     qrInput.value = "";
     document.getElementById("speakLangLabel").textContent = "Language: English";
     document.getElementById("dataSection").classList.add("hidden");

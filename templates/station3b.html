@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station 3(b) - BP &amp; Vision</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="/static/qr_scanner.js"></script>
+    <style>
+        .snellen-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .snellen-row label {
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+        }
+        .snellen-row select,
+        .snellen-row input[type="text"] {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        .snellen-row select:focus,
+        .snellen-row input[type="text"]:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+        }
+        .btn-speak {
+            display: block;
+            width: 100%;
+            padding: 18px;
+            margin-top: 8px;
+            background: #e37400;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-speak:hover  { background: #c56200; }
+        .btn-speak:active { background: #a35200; }
+        .speak-lang {
+            text-align: center;
+            font-size: 13px;
+            color: #777;
+            margin-top: 6px;
+        }
+        .section-divider {
+            border: none;
+            border-top: 2px solid #e8eaed;
+            margin: 24px 0 16px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Station 3(b): BP &amp; Vision</h1>
+
+    <div id="status" class="status hidden"></div>
+
+    <!-- ── Step 1: Scan ───────────────────────────────────────── -->
+    <div id="scanSection">
+        <h2>Scan Patient QR Code</h2>
+        <button class="btn-scan" onclick="startCamera()">
+            📷 Tap to Scan QR Code
+        </button>
+        <details class="manual-entry">
+            <summary>Manual entry / USB scanner</summary>
+            <div class="form-group" style="margin-top:12px">
+                <input type="text" id="qrInput"
+                    placeholder="Scan or type QR data, then press Enter"
+                    autocomplete="off">
+            </div>
+        </details>
+    </div>
+
+    <!-- ── Step 2: Data entry ─────────────────────────────────── -->
+    <div id="dataSection" class="hidden">
+
+        <!-- Patient card -->
+        <div class="patient-card">
+            <div class="patient-field">
+                <span class="label">Name</span>
+                <span id="displayName" class="value"></span>
+            </div>
+            <div class="patient-field">
+                <span class="label">Passport No.</span>
+                <span id="displayPassport" class="value"></span>
+            </div>
+            <div class="patient-field">
+                <span class="label">Nationality</span>
+                <span id="displayNationality" class="value"></span>
+            </div>
+        </div>
+
+        <!-- ── Blood Pressure ─────────────────────────────────── -->
+        <h2>Blood Pressure</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="systolic">Systolic (mmHg)</label>
+                <input type="number" id="systolic" placeholder="e.g. 120"
+                    min="60" max="250" inputmode="numeric">
+            </div>
+            <div class="form-group">
+                <label for="diastolic">Diastolic (mmHg)</label>
+                <input type="number" id="diastolic" placeholder="e.g. 80"
+                    min="40" max="160" inputmode="numeric">
+            </div>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- ── Snellen Vision ─────────────────────────────────── -->
+        <h2>Snellen Vision Acuity</h2>
+        <p class="hint">Select result per eye. Choose "Other" to type a custom value.</p>
+
+        <!-- Right eye -->
+        <div class="snellen-row">
+            <label>Right Eye</label>
+            <select id="visionRightSelect" onchange="onSnellenChange('right')">
+                <option value="">-- Select --</option>
+                <option value="6/6">6/6</option>
+                <option value="6/9">6/9</option>
+                <option value="6/12">6/12</option>
+                <option value="other">Other…</option>
+            </select>
+            <input type="text" id="visionRightCustom" placeholder="e.g. 6/18"
+                class="hidden">
+        </div>
+
+        <!-- Left eye -->
+        <div class="snellen-row">
+            <label>Left Eye</label>
+            <select id="visionLeftSelect" onchange="onSnellenChange('left')">
+                <option value="">-- Select --</option>
+                <option value="6/6">6/6</option>
+                <option value="6/9">6/9</option>
+                <option value="6/12">6/12</option>
+                <option value="other">Other…</option>
+            </select>
+            <input type="text" id="visionLeftCustom" placeholder="e.g. 6/18"
+                class="hidden">
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- ── 3(c) Snellen Instructions TTS ─────────────────── -->
+        <h2>Snellen Instructions</h2>
+        <button class="btn-speak" onclick="speakSnellenInstructions()">
+            🔊 Read Instructions to Patient
+        </button>
+        <p id="speakLangLabel" class="speak-lang">Language: English</p>
+
+        <hr class="section-divider">
+
+        <!-- ── Actions ────────────────────────────────────────── -->
+        <div class="button-row">
+            <button id="saveBtn" class="btn-save" onclick="saveData()">Save to Sheet</button>
+            <button class="btn-secondary" onclick="resetForm()">← Scan Next Patient</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────
+// Snellen instruction scripts per language
+// Sentences: [look_forward, read_lowest_line, read_2nd_lowest_line]
+// Repetitions: [2, 2, 1]
+// ─────────────────────────────────────────────────────────────────────────
+const SNELLEN_SCRIPTS = {
+    en: { lang: 'en-SG', name: 'English', sentences: [
+        "Please look up in front of you.",
+        "Please say out the number at the lowest line.",
+        "Please say out the number at the second lowest line."
+    ]},
+    zh: { lang: 'zh-CN', name: 'Chinese (Mandarin)', sentences: [
+        "请向前方看。",
+        "请说出最下一行的数字。",
+        "请说出倒数第二行的数字。"
+    ]},
+    ms: { lang: 'ms-MY', name: 'Malay', sentences: [
+        "Sila lihat ke hadapan.",
+        "Sila sebut nombor pada baris paling bawah.",
+        "Sila sebut nombor pada baris kedua dari bawah."
+    ]},
+    ta: { lang: 'ta-IN', name: 'Tamil', sentences: [
+        "தயவுசெய்து முன்னால் பாருங்கள்.",
+        "கீழே இருக்கும் வரிசையில் உள்ள எண்ணை சொல்லுங்கள்.",
+        "கீழிருந்து இரண்டாவது வரிசையில் உள்ள எண்ணை சொல்லுங்கள்."
+    ]},
+    hi: { lang: 'hi-IN', name: 'Hindi', sentences: [
+        "कृपया सामने देखें।",
+        "सबसे नीचे की पंक्ति में लिखा नंबर बोलें।",
+        "नीचे से दूसरी पंक्ति में लिखा नंबर बोलें।"
+    ]},
+    fil: { lang: 'fil-PH', name: 'Filipino', sentences: [
+        "Pakitingin sa harapan.",
+        "Pakisabi ang numero sa pinakamababang linya.",
+        "Pakisabi ang numero sa pangalawang linya mula sa ibaba."
+    ]},
+    th: { lang: 'th-TH', name: 'Thai', sentences: [
+        "กรุณามองตรงไปข้างหน้า",
+        "กรุณาบอกตัวเลขในแถวล่างสุด",
+        "กรุณาบอกตัวเลขในแถวที่สองจากล่าง"
+    ]},
+    vi: { lang: 'vi-VN', name: 'Vietnamese', sentences: [
+        "Xin hãy nhìn thẳng về phía trước.",
+        "Xin đọc số ở hàng dưới cùng.",
+        "Xin đọc số ở hàng thứ hai từ dưới lên."
+    ]},
+    my: { lang: 'my-MM', name: 'Burmese', sentences: [
+        "ကျေးဇူးပြု၍ ရှေ့ကိုကြည့်ပါ။",
+        "အောက်ဆုံးတန်းရှိ နံပါတ်ကို ပြောပါ။",
+        "အောက်မှ ဒုတိယတန်းရှိ နံပါတ်ကို ပြောပါ။"
+    ]},
+    bn: { lang: 'bn-BD', name: 'Bengali', sentences: [
+        "অনুগ্রহ করে সামনে তাকান।",
+        "নিচের লাইনের সংখ্যাটি বলুন।",
+        "দ্বিতীয় নিচের লাইনের সংখ্যাটি বলুন।"
+    ]},
+    id: { lang: 'id-ID', name: 'Indonesian', sentences: [
+        "Tolong lihat ke depan.",
+        "Tolong sebutkan angka di baris paling bawah.",
+        "Tolong sebutkan angka di baris kedua dari bawah."
+    ]},
+    ur: { lang: 'ur-PK', name: 'Urdu', sentences: [
+        "براہ کرم سامنے دیکھیں۔",
+        "سب سے نیچے والی قطار میں نمبر بتائیں۔",
+        "نیچے سے دوسری قطار میں نمبر بتائیں۔"
+    ]},
+    ko: { lang: 'ko-KR', name: 'Korean', sentences: [
+        "앞을 바라봐 주세요.",
+        "맨 아래 줄의 숫자를 말해 주세요.",
+        "아래에서 두 번째 줄의 숫자를 말해 주세요."
+    ]},
+    ja: { lang: 'ja-JP', name: 'Japanese', sentences: [
+        "正面を見てください。",
+        "一番下の行の数字を言ってください。",
+        "下から二番目の行の数字を言ってください。"
+    ]},
+};
+
+// MRZ 3-letter nationality code → language key
+const NATIONALITY_LANG = {
+    'SGP':'en','GBR':'en','USA':'en','AUS':'en','NZL':'en','CAN':'en','IRL':'en',
+    'MYS':'ms','BRN':'ms',
+    'CHN':'zh','TWN':'zh','HKG':'zh','MAC':'zh',
+    'IND':'hi',
+    'LKA':'ta',
+    'PHL':'fil',
+    'THA':'th',
+    'VNM':'vi',
+    'MMR':'my',
+    'BGD':'bn',
+    'IDN':'id',
+    'PAK':'ur',
+    'KOR':'ko',
+    'JPN':'ja',
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+let currentPassport = "";
+let currentName     = "";
+let currentNationality = "";
+
+// ── Camera scan ────────────────────────────────────────────────────────
+async function startCamera() {
+    try {
+        await QRScanner.start(onQrDetected);
+    } catch (err) {
+        showStatus(err.message, "error");
+    }
+}
+
+function onQrDetected(raw) { parseQr(raw); }
+
+// USB / manual fallback
+const qrInput = document.getElementById("qrInput");
+qrInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); parseQr(qrInput.value.trim()); }
+});
+qrInput.addEventListener("change", () => parseQr(qrInput.value.trim()));
+
+// ── QR parser ──────────────────────────────────────────────────────────
+function parseQr(raw) {
+    if (!raw) return;
+    const parts = raw.split("|");
+    if (parts.length < 2) {
+        showStatus("QR not recognised. Please try again.", "error");
+        qrInput.value = "";
+        return;
+    }
+    currentName     = parts[0].trim();
+    currentPassport = parts[1].trim();
+
+    document.getElementById("displayName").textContent     = currentName;
+    document.getElementById("displayPassport").textContent = currentPassport;
+    document.getElementById("displayNationality").textContent = "Loading…";
+
+    document.getElementById("scanSection").classList.add("hidden");
+    document.getElementById("dataSection").classList.remove("hidden");
+    document.getElementById("systolic").focus();
+
+    // Look up full patient record (for nationality → TTS language)
+    fetchPatientDetails(currentPassport);
+}
+
+async function fetchPatientDetails(passport) {
+    try {
+        const resp = await fetch(`/api/get_patient/${encodeURIComponent(passport)}`);
+        if (!resp.ok) throw new Error("not found");
+        const patient = await resp.json();
+        currentNationality = (patient["Nationality"] || "").toUpperCase().trim();
+        document.getElementById("displayNationality").textContent =
+            currentNationality || "—";
+        updateSpeakLabel();
+    } catch {
+        document.getElementById("displayNationality").textContent = "—";
+    }
+}
+
+function updateSpeakLabel() {
+    const langKey = NATIONALITY_LANG[currentNationality] || "en";
+    const script  = SNELLEN_SCRIPTS[langKey] || SNELLEN_SCRIPTS["en"];
+    document.getElementById("speakLangLabel").textContent = `Language: ${script.name}`;
+}
+
+// ── Snellen select/custom toggle ───────────────────────────────────────
+function onSnellenChange(eye) {
+    const sel    = document.getElementById(`vision${cap(eye)}Select`);
+    const custom = document.getElementById(`vision${cap(eye)}Custom`);
+    if (sel.value === "other") {
+        custom.classList.remove("hidden");
+        custom.focus();
+    } else {
+        custom.classList.add("hidden");
+        custom.value = "";
+    }
+}
+
+function getSnellenValue(eye) {
+    const sel = document.getElementById(`vision${cap(eye)}Select`).value;
+    if (sel === "other") {
+        return document.getElementById(`vision${cap(eye)}Custom`).value.trim();
+    }
+    return sel;
+}
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// ── 3(c) Snellen TTS ───────────────────────────────────────────────────
+function speakSnellenInstructions() {
+    if (!window.speechSynthesis) {
+        showStatus("Text-to-speech is not supported in this browser.", "error");
+        return;
+    }
+
+    const langKey = NATIONALITY_LANG[currentNationality] || "en";
+    const script  = SNELLEN_SCRIPTS[langKey] || SNELLEN_SCRIPTS["en"];
+
+    // Sentence → repetition count
+    const queue = [
+        { text: script.sentences[0], times: 2 },
+        { text: script.sentences[1], times: 2 },
+        { text: script.sentences[2], times: 1 },
+    ];
+
+    window.speechSynthesis.cancel();
+
+    function speakQueue(q) {
+        if (q.length === 0) return;
+        const { text, times } = q[0];
+        let count = 0;
+        function next() {
+            if (count >= times) { speakQueue(q.slice(1)); return; }
+            count++;
+            const utt  = new SpeechSynthesisUtterance(text);
+            utt.lang   = script.lang;
+            utt.rate   = 0.85;
+            utt.onend  = next;
+            utt.onerror = () => { speakQueue(q.slice(1)); };
+            window.speechSynthesis.speak(utt);
+        }
+        next();
+    }
+
+    speakQueue(queue);
+}
+
+// ── Save ───────────────────────────────────────────────────────────────
+async function saveData() {
+    const systolic  = document.getElementById("systolic").value.trim();
+    const diastolic = document.getElementById("diastolic").value.trim();
+    const visionR   = getSnellenValue("right");
+    const visionL   = getSnellenValue("left");
+
+    if (!systolic && !diastolic && !visionR && !visionL) {
+        showStatus("Please enter at least one measurement.", "error");
+        return;
+    }
+
+    const btn = document.getElementById("saveBtn");
+    btn.disabled   = true;
+    btn.textContent = "Saving…";
+
+    try {
+        const resp = await fetch("/api/station3b/save", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                passport_number: currentPassport,
+                systolic_bp:  systolic,
+                diastolic_bp: diastolic,
+                vision_right: visionR,
+                vision_left:  visionL,
+            }),
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || "Save failed");
+        showStatus(`Saved for ${currentName}`, "success");
+        setTimeout(resetForm, 1500);
+    } catch (err) {
+        showStatus("Error: " + err.message, "error");
+    } finally {
+        btn.disabled   = false;
+        btn.textContent = "Save to Sheet";
+    }
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────
+function resetForm() {
+    currentPassport    = "";
+    currentName        = "";
+    currentNationality = "";
+    window.speechSynthesis && window.speechSynthesis.cancel();
+
+    ["systolic","diastolic"].forEach(id => document.getElementById(id).value = "");
+    ["Right","Left"].forEach(eye => {
+        document.getElementById(`vision${eye}Select`).value = "";
+        const custom = document.getElementById(`vision${eye}Custom`);
+        custom.value = "";
+        custom.classList.add("hidden");
+    });
+    qrInput.value = "";
+    document.getElementById("speakLangLabel").textContent = "Language: English";
+    document.getElementById("dataSection").classList.add("hidden");
+    document.getElementById("scanSection").classList.remove("hidden");
+}
+
+// ── Status helper ──────────────────────────────────────────────────────
+function showStatus(msg, type) {
+    const el = document.getElementById("status");
+    el.textContent  = msg;
+    el.className    = "status " + type;
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.add("hidden"), 7000);
+}
+</script>
+</body>
+</html>

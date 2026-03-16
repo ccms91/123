@@ -31,6 +31,9 @@ HEADERS = [
     # ── Fields populated at other stations ──
     "Height",
     "Weight",
+    "Urine Protein",
+    "Urine Sugar",
+    "Urine Pregnancy",
     "Systolic BP",
     "Diastolic BP",
     "Vision Acuity",
@@ -98,6 +101,31 @@ def update_patient_in_sheet(passport_number, updates, creds_file="credentials.js
     return True
 
 
+def get_patient_from_sheet(passport_number, creds_file="credentials.json", sheet_name="HealthScreening"):
+    """
+    Return a dict of patient data for the given passport number, or None if not found.
+    Keys match the HEADERS list.
+    """
+    client = _get_client(creds_file)
+    sheet = client.open(sheet_name).sheet1
+
+    all_values = sheet.get_all_values()
+    if not all_values:
+        return None
+
+    headers = all_values[0]
+    try:
+        passport_col = headers.index("Passport No.")
+    except ValueError:
+        return None
+
+    for row in all_values[1:]:
+        if len(row) > passport_col and row[passport_col].strip().upper() == passport_number.strip().upper():
+            return dict(zip(headers, row))
+
+    return None
+
+
 def append_patient_to_sheet(patient_data, creds_file="credentials.json", sheet_name="HealthScreening"):
     """
     Append a patient row to the Google Sheet.
@@ -136,6 +164,9 @@ def append_patient_to_sheet(patient_data, creds_file="credentials.json", sheet_n
         # Other station fields left empty
         "",  # Height
         "",  # Weight
+        "",  # Urine Protein
+        "",  # Urine Sugar
+        "",  # Urine Pregnancy
         "",  # Systolic BP
         "",  # Diastolic BP
         "",  # Vision Acuity

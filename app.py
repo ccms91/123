@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
 from services.label_generator import generate_labels_pdf
-from services.google_sheets import append_patient_to_sheet, update_patient_in_sheet
+from services.google_sheets import append_patient_to_sheet, update_patient_in_sheet, get_patient_from_sheet
 
 app = Flask(__name__)
 
@@ -120,6 +120,75 @@ def station2_save():
         return jsonify({"status": "ok"})
     except Exception as e:
         print(f"[ERROR] Station 2 save: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/station3b")
+def station3b():
+    return render_template("station3b.html")
+
+
+@app.route("/api/get_patient/<passport>")
+def get_patient(passport):
+    """Look up a patient by passport number and return their data as JSON."""
+    try:
+        patient = get_patient_from_sheet(
+            passport,
+            creds_file=app.config["GOOGLE_CREDS_FILE"],
+            sheet_name=app.config["GOOGLE_SHEET_NAME"],
+        )
+        if not patient:
+            return jsonify({"error": "Patient not found"}), 404
+        return jsonify(patient)
+    except Exception as e:
+        print(f"[ERROR] get_patient: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/station3b/save", methods=["POST"])
+def station3b_save():
+    """Update Systolic BP, Diastolic BP, and Vision Acuity for a patient."""
+    data = request.get_json()
+    passport = data.get("passport_number", "").strip()
+    if not passport:
+        return jsonify({"error": "No passport number provided"}), 400
+
+    vision_right = data.get("vision_right", "").strip()
+    vision_left  = data.get("vision_left",  "").strip()
+
+    # Combine both eyes into one field: "R:6/6 L:6/9"
+    if vision_right and vision_left:
+        vision_str = f"R:{vision_right} L:{vision_left}"
+    elif vision_right:
+        vision_str = f"R:{vision_right}"
+    elif vision_left:
+        vision_str = f"L:{vision_left}"
+    else:
+        vision_str = ""
+
+    updates = {}
+    if data.get("systolic_bp"):
+        updates["Systolic BP"] = data["systolic_bp"]
+    if data.get("diastolic_bp"):
+        updates["Diastolic BP"] = data["diastolic_bp"]
+    if vision_str:
+        updates["Vision Acuity"] = vision_str
+
+    if not updates:
+        return jsonify({"error": "No data provided"}), 400
+
+    try:
+        found = update_patient_in_sheet(
+            passport,
+            updates,
+            creds_file=app.config["GOOGLE_CREDS_FILE"],
+            sheet_name=app.config["GOOGLE_SHEET_NAME"],
+        )
+        if not found:
+            return jsonify({"error": f"Patient '{passport}' not found. Register at Station 1 first."}), 404
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print(f"[ERROR] Station 3b save: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -1,4 +1,4 @@
-/* Health Screening Clinic - Registration App Styles */
+/* Health Screening Clinic - Shared Styles */
 
 * {
     box-sizing: border-box;
@@ -116,6 +116,108 @@ h2 {
 .btn-save:disabled {
     background: #94bef7;
     cursor: not-allowed;
+}
+
+/* ── Camera scan button ───────────────── */
+.btn-scan {
+    display: block;
+    width: 100%;
+    padding: 20px;
+    margin: 16px 0;
+    background: #34a853;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+    letter-spacing: 0.3px;
+}
+
+.btn-scan:hover {
+    background: #2d8f47;
+}
+
+/* ── Secondary button ─────────────────── */
+.btn-secondary {
+    padding: 12px 20px;
+    background: #f1f3f4;
+    color: #444;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+    background: #e2e5e9;
+}
+
+/* ── Button row ───────────────────────── */
+.button-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.button-row .btn-save {
+    flex: 1;
+    margin-top: 0;
+    min-width: 120px;
+}
+
+/* ── Patient card ─────────────────────── */
+.patient-card {
+    background: #e8f0fe;
+    border: 1px solid #c5d8fc;
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.patient-field {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 16px;
+}
+
+.patient-field .label {
+    color: #555;
+    min-width: 100px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.patient-field .value {
+    font-weight: bold;
+    color: #1a1a2e;
+    font-size: 17px;
+}
+
+/* ── Manual entry collapsible ─────────── */
+.manual-entry {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #666;
+}
+
+.manual-entry summary {
+    cursor: pointer;
+    color: #1a73e8;
+    text-decoration: underline;
+}
+
+/* ── Hidden utility ───────────────────── */
+.hidden {
+    display: none !important;
 }
 
 /* Status messages */

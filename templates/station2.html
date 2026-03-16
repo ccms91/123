@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Station 2 - Height &amp; Weight</title>
     <link rel="stylesheet" href="/static/style.css">
+    <!-- jsQR: reads QR codes from camera frames, no installation needed -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="/static/qr_scanner.js"></script>
 </head>
 <body>
     <div class="container">
@@ -12,25 +15,31 @@
 
         <div id="status" class="status hidden"></div>
 
-        <!-- ── Step 1: QR Scan ──────────────────────────────────── -->
+        <!-- ── Step 1: Scan ────────────────────────────────────── -->
         <div id="scanSection">
             <h2>Scan Patient QR Code</h2>
-            <p class="hint">Point the QR scanner at the patient's label and scan.</p>
-            <div class="form-group">
-                <label for="qrInput">QR Scanner Input</label>
-                <input
-                    type="text"
-                    id="qrInput"
-                    placeholder="Scan QR code here..."
-                    autocomplete="off"
-                    autofocus
-                >
-            </div>
+
+            <!-- Primary: camera button (Android / any phone) -->
+            <button class="btn-scan" onclick="startCamera()">
+                📷 Tap to Scan QR Code
+            </button>
+
+            <!-- Fallback: type / paste / USB scanner -->
+            <details class="manual-entry">
+                <summary>Manual entry / USB scanner</summary>
+                <div class="form-group" style="margin-top:12px">
+                    <input
+                        type="text"
+                        id="qrInput"
+                        placeholder="Scan or type QR data, then press Enter"
+                        autocomplete="off"
+                    >
+                </div>
+            </details>
         </div>
 
-        <!-- ── Step 2: Patient Info + Measurements ──────────────── -->
+        <!-- ── Step 2: Patient info + measurements ──────────────── -->
         <div id="dataSection" class="hidden">
-            <h2>Patient Details</h2>
             <div class="patient-card">
                 <div class="patient-field">
                     <span class="label">Name</span>
@@ -49,11 +58,9 @@
                     <input
                         type="number"
                         id="height"
-                        name="height"
                         placeholder="e.g. 170"
-                        min="50"
-                        max="250"
-                        step="0.1"
+                        min="50" max="250" step="0.1"
+                        inputmode="decimal"
                     >
                 </div>
                 <div class="form-group">
@@ -61,18 +68,16 @@
                     <input
                         type="number"
                         id="weight"
-                        name="weight"
                         placeholder="e.g. 65"
-                        min="10"
-                        max="300"
-                        step="0.1"
+                        min="10" max="300" step="0.1"
+                        inputmode="decimal"
                     >
                 </div>
             </div>
 
             <div class="button-row">
                 <button id="saveBtn" class="btn-save" onclick="saveData()">Save</button>
-                <button class="btn-secondary" onclick="resetForm()">Scan Next Patient</button>
+                <button class="btn-secondary" onclick="resetForm()">← Scan Next Patient</button>
             </div>
         </div>
     </div>
@@ -81,31 +86,33 @@
         let currentPassport = "";
         let currentName = "";
 
-        const qrInput = document.getElementById("qrInput");
-        const scanSection = document.getElementById("scanSection");
-        const dataSection = document.getElementById("dataSection");
-
-        // ── QR scan handler ───────────────────────────────────────
-        // USB QR scanners type the content then press Enter.
-        qrInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                const raw = qrInput.value.trim();
-                if (raw) parseQr(raw);
+        // ── Camera scan ───────────────────────────────────────────
+        async function startCamera() {
+            try {
+                await QRScanner.start(onQrDetected);
+            } catch (err) {
+                showStatus(err.message, "error");
             }
-        });
+        }
 
-        // Also handle if the scanner sends data all at once (some models)
-        qrInput.addEventListener("change", () => {
-            const raw = qrInput.value.trim();
-            if (raw) parseQr(raw);
-        });
+        function onQrDetected(raw) {
+            parseQr(raw);
+        }
 
+        // ── USB / manual fallback ─────────────────────────────────
+        const qrInput = document.getElementById("qrInput");
+        qrInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") { e.preventDefault(); parseQr(qrInput.value.trim()); }
+        });
+        qrInput.addEventListener("change", () => parseQr(qrInput.value.trim()));
+
+        // ── QR parser ─────────────────────────────────────────────
+        // Labels 1-4 QR format: "Name|PassportNumber"
         function parseQr(raw) {
-            // QR format: "Name|PassportNumber"
+            if (!raw) return;
             const parts = raw.split("|");
             if (parts.length < 2) {
-                showStatus("Could not read QR code. Please try again.", "error");
+                showStatus("QR not recognised. Please try again.", "error");
                 qrInput.value = "";
                 return;
             }
@@ -115,15 +122,12 @@
             document.getElementById("displayName").textContent = currentName;
             document.getElementById("displayPassport").textContent = currentPassport;
 
-            // Switch to data entry view
-            scanSection.classList.add("hidden");
-            dataSection.classList.remove("hidden");
-
-            // Focus height field
+            document.getElementById("scanSection").classList.add("hidden");
+            document.getElementById("dataSection").classList.remove("hidden");
             document.getElementById("height").focus();
         }
 
-        // ── Save data ─────────────────────────────────────────────
+        // ── Save ──────────────────────────────────────────────────
         async function saveData() {
             const height = document.getElementById("height").value.trim();
             const weight = document.getElementById("weight").value.trim();
@@ -144,17 +148,15 @@
                     body: JSON.stringify({
                         passport_number: currentPassport,
                         name: currentName,
-                        height: height,
-                        weight: weight,
+                        height,
+                        weight,
                     }),
                 });
-
                 const result = await resp.json();
                 if (!resp.ok) throw new Error(result.error || "Save failed");
 
-                showStatus(`Saved for ${currentName} (${currentPassport})`, "success");
+                showStatus(`Saved for ${currentName}`, "success");
                 setTimeout(resetForm, 1500);
-
             } catch (err) {
                 showStatus("Error: " + err.message, "error");
             } finally {
@@ -163,16 +165,15 @@
             }
         }
 
-        // ── Reset for next patient ────────────────────────────────
+        // ── Reset ─────────────────────────────────────────────────
         function resetForm() {
             currentName = "";
             currentPassport = "";
             document.getElementById("height").value = "";
             document.getElementById("weight").value = "";
             qrInput.value = "";
-            dataSection.classList.add("hidden");
-            scanSection.classList.remove("hidden");
-            qrInput.focus();
+            document.getElementById("dataSection").classList.add("hidden");
+            document.getElementById("scanSection").classList.remove("hidden");
         }
 
         function showStatus(msg, type) {
@@ -180,11 +181,8 @@
             el.textContent = msg;
             el.className = "status " + type;
             el.classList.remove("hidden");
-            setTimeout(() => el.classList.add("hidden"), 6000);
+            setTimeout(() => el.classList.add("hidden"), 7000);
         }
-
-        // Auto-focus scan field whenever scan section is visible
-        qrInput.focus();
     </script>
 </body>
 </html>

@@ -18,6 +18,7 @@ import os
 import sys
 import time
 import json
+import requests
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -38,9 +39,8 @@ OUTPUT_FOLDER = os.environ.get("SIG_OUTPUT_FOLDER", r"C:\CompletedForms")
 MOM_FORM_TEMPLATE = os.environ.get("MOM_FORM_TEMPLATE", r"C:\Templates\WPCM_form.pdf")
 PREGNANCY_DECL_TEMPLATE = os.environ.get("PREGNANCY_DECL_TEMPLATE", r"C:\Templates\pregnancy_declaration.pdf")
 
-# Google Sheet data file (updated by the web app or a sync script)
-# This JSON file contains the current patient's data for form filling
-PATIENT_DATA_FILE = os.environ.get("PATIENT_DATA_FILE", r"C:\clinic_data\current_patient.json")
+# URL of the local Station 1 app (local_app.py)
+LOCAL_APP_URL = os.environ.get("LOCAL_APP_URL", "http://localhost:5001")
 
 # ── Signature position on the MOM WPCM form ───────────────────────────────
 # These are approximate coordinates (x, y, width, height) in points
@@ -56,13 +56,32 @@ PREG_SIG_PAGE = 0
 
 
 def get_current_patient_data():
-    """Read the current patient data from the JSON file."""
-    if not os.path.exists(PATIENT_DATA_FILE):
-        print(f"[SIG] Warning: Patient data file not found: {PATIENT_DATA_FILE}")
+    """Fetch the current patient data from the local Station 1 app."""
+    try:
+        resp = requests.get(f"{LOCAL_APP_URL}/api/state", timeout=3)
+        resp.raise_for_status()
+        patient = resp.json().get("patient") or {}
+        if not patient:
+            print(f"[SIG] Warning: No patient in local app — proceeding with empty data")
+        return patient
+    except Exception as e:
+        print(f"[SIG] Warning: Could not reach local app ({e}) — proceeding with empty data")
         return {}
 
-    with open(PATIENT_DATA_FILE, "r") as f:
-        return json.load(f)
+
+def send_signature_preview(sig_image_path):
+    """Push the signature image to the local app so the browser tab shows a preview."""
+    try:
+        with open(sig_image_path, "rb") as f:
+            resp = requests.post(
+                f"{LOCAL_APP_URL}/api/signature",
+                files={"file": (os.path.basename(sig_image_path), f)},
+                timeout=5,
+            )
+        resp.raise_for_status()
+        print(f"[SIG] Signature preview sent to local app")
+    except Exception as e:
+        print(f"[SIG] Warning: Could not send preview to local app ({e})")
 
 
 def fill_mom_form(sig_image_path, patient_data, output_path):
@@ -262,7 +281,10 @@ class SignatureFileHandler(FileSystemEventHandler):
         # Wait for file to be fully written
         time.sleep(1)
 
-        # Get current patient data
+        # Push image to local app for browser preview
+        send_signature_preview(event.src_path)
+
+        # Get current patient data from local app
         patient_data = get_current_patient_data()
         patient_name = patient_data.get("name", "Unknown")
         patient_passport = patient_data.get("passport_number", "Unknown")
@@ -296,9 +318,9 @@ def main():
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
     print(f"[SIG] Watching folder: {SIG_WATCH_FOLDER}")
-    print(f"[SIG] Output folder: {OUTPUT_FOLDER}")
-    print(f"[SIG] MOM form template: {MOM_FORM_TEMPLATE}")
-    print(f"[SIG] Patient data file: {PATIENT_DATA_FILE}")
+    print(f"[SIG] Output folder:   {OUTPUT_FOLDER}")
+    print(f"[SIG] MOM form:        {MOM_FORM_TEMPLATE}")
+    print(f"[SIG] Local app:       {LOCAL_APP_URL}")
     print(f"[SIG] Waiting for signatures...")
     print(f"[SIG] Press Ctrl+C to stop.\n")
 

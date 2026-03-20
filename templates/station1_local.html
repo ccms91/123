@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station 1 – Registration</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .scan-box {
+            background: #f8f9fa;
+            border: 2px dashed #dadce0;
+            border-radius: 8px;
+            padding: 20px 24px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+        }
+        .scan-box.has-data {
+            background: #e8f0fe;
+            border-color: #1a73e8;
+            border-style: solid;
+        }
+        .waiting {
+            color: #80868b;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .patient-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 32px;
+            width: 100%;
+        }
+        .patient-field .lbl {
+            font-size: 11px;
+            color: #80868b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .patient-field .val {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        .sig-box {
+            background: #f8f9fa;
+            border: 2px dashed #dadce0;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            min-height: 110px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sig-box.has-sig {
+            background: #e6f4ea;
+            border-color: #34a853;
+            border-style: solid;
+        }
+        .sig-box img {
+            max-height: 90px;
+            max-width: 100%;
+            background: white;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+        }
+        .section-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .section-row h2 { margin: 0; }
+        .btn-clear {
+            background: none;
+            border: 1px solid #dadce0;
+            color: #5f6368;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .btn-clear:hover { background: #f1f3f4; }
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #fbbc04;
+            animation: pulse 1.5s infinite;
+            flex-shrink: 0;
+        }
+        .pulse.green { background: #34a853; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+        .sig-warning {
+            font-size: 12px;
+            color: #ea8600;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Station 1: Registration</h1>
+
+    <div id="status" class="status hidden"></div>
+
+    <!-- ── Patient Details (from MRZ scanner) ────────────────────────── -->
+    <div class="section-row">
+        <h2>Patient Details</h2>
+        <button class="btn-clear" onclick="clearPatient()">Clear</button>
+    </div>
+    <div id="patientBox" class="scan-box">
+        <span class="waiting"><span class="pulse"></span> Waiting for passport scan...</span>
+    </div>
+
+    <!-- ── Clinic Details (persistent across patients) ───────────────── -->
+    <h2 style="margin-top:24px">Clinic Details</h2>
+    <p class="hint">Saved automatically — carry over between patients.</p>
+    <div class="form-grid">
+        <div class="form-group persistent">
+            <label for="corporate_name"><strong>Corporate Name</strong></label>
+            <input type="text" id="corporate_name" class="bold-input">
+        </div>
+        <div class="form-group persistent">
+            <label for="test_to_order"><strong>Test to be Ordered</strong></label>
+            <input type="text" id="test_to_order" class="bold-input">
+        </div>
+        <div class="form-group persistent">
+            <label for="clinic_hci"><strong>Clinic HCI Code</strong></label>
+            <input type="text" id="clinic_hci" class="bold-input">
+        </div>
+        <div class="form-group persistent">
+            <label for="doctor_mcr"><strong>Doctor MCR Number</strong></label>
+            <input type="text" id="doctor_mcr" class="bold-input">
+        </div>
+        <div class="form-group persistent">
+            <label for="doctor_name"><strong>Doctor Name</strong></label>
+            <input type="text" id="doctor_name" class="bold-input">
+        </div>
+    </div>
+
+    <!-- ── Signature (from Huion tablet) ─────────────────────────────── -->
+    <h2 style="margin-top:24px">Signature</h2>
+    <div id="sigBox" class="sig-box">
+        <span class="waiting"><span class="pulse"></span> Waiting for signature from tablet...</span>
+    </div>
+
+    <!-- ── Save ───────────────────────────────────────────────────────── -->
+    <button class="btn-save" id="saveBtn" onclick="savePatient()"
+            style="margin-top:24px" disabled>
+        Save &amp; Print Labels
+    </button>
+    <p id="sigWarning" class="sig-warning hidden">
+        No signature yet — you can still save, but the MOM form won't be filled until the patient signs.
+    </p>
+</div>
+
+<script>
+    // ── Persistent clinic fields (localStorage) ─────────────────────────
+    const PERSISTENT = ["corporate_name", "test_to_order", "clinic_hci", "doctor_mcr", "doctor_name"];
+    PERSISTENT.forEach(id => {
+        const el    = document.getElementById(id);
+        const saved = localStorage.getItem("clinic_" + id);
+        if (saved) el.value = saved;
+        el.addEventListener("input", () => localStorage.setItem("clinic_" + id, el.value));
+    });
+
+    // ── State ────────────────────────────────────────────────────────────
+    let currentPatient = null;
+    let hasSig         = false;
+    let lastUpdated    = null;
+
+    // ── Poll /api/state every 1.5 s ──────────────────────────────────────
+    async function pollState() {
+        try {
+            const resp  = await fetch("/api/state");
+            if (!resp.ok) return;
+            const state = await resp.json();
+            if (state.updated_at !== lastUpdated) {
+                lastUpdated = state.updated_at;
+                renderPatient(state.patient);
+                renderSig(state.sig_b64);
+            }
+        } catch (_) { /* ignore transient network errors */ }
+    }
+    setInterval(pollState, 1500);
+    pollState();
+
+    // ── Render patient card ───────────────────────────────────────────────
+    function renderPatient(patient) {
+        currentPatient    = patient;
+        const box         = document.getElementById("patientBox");
+
+        if (!patient) {
+            box.className = "scan-box";
+            box.innerHTML = `<span class="waiting"><span class="pulse"></span> Waiting for passport scan...</span>`;
+            updateSaveBtn();
+            return;
+        }
+
+        const dob = patient.dob
+            ? new Date(patient.dob + "T00:00:00").toLocaleDateString("en-GB",
+                { day: "2-digit", month: "short", year: "numeric" })
+            : "—";
+        const sexLabel = patient.sex === "M" ? "Male"
+                       : patient.sex === "F" ? "Female"
+                       : patient.sex || "—";
+
+        box.className = "scan-box has-data";
+        box.innerHTML = `
+            <div class="patient-grid">
+                <div class="patient-field">
+                    <div class="lbl">Full Name</div>
+                    <div class="val">${esc(patient.name)}</div>
+                </div>
+                <div class="patient-field">
+                    <div class="lbl">Passport Number</div>
+                    <div class="val">${esc(patient.passport_number)}</div>
+                </div>
+                <div class="patient-field">
+                    <div class="lbl">Sex</div>
+                    <div class="val">${esc(sexLabel)}</div>
+                </div>
+                <div class="patient-field">
+                    <div class="lbl">Date of Birth</div>
+                    <div class="val">${esc(dob)}</div>
+                </div>
+                <div class="patient-field">
+                    <div class="lbl">Nationality</div>
+                    <div class="val">${esc(patient.nationality)}</div>
+                </div>
+            </div>`;
+        updateSaveBtn();
+    }
+
+    // ── Render signature preview ──────────────────────────────────────────
+    function renderSig(sigB64) {
+        hasSig        = !!sigB64;
+        const box     = document.getElementById("sigBox");
+        const warning = document.getElementById("sigWarning");
+
+        if (!sigB64) {
+            box.className = "sig-box";
+            box.innerHTML = `<span class="waiting"><span class="pulse"></span> Waiting for signature from tablet...</span>`;
+        } else {
+            box.className = "sig-box has-sig";
+            box.innerHTML = `<img src="${sigB64}" alt="Signature">`;
+        }
+
+        // Show warning only when patient is present but signature is not yet received
+        warning.classList.toggle("hidden", !currentPatient || hasSig);
+        updateSaveBtn();
+    }
+
+    // ── Enable Save when patient data is present ──────────────────────────
+    function updateSaveBtn() {
+        document.getElementById("saveBtn").disabled = !currentPatient;
+    }
+
+    // ── Clear button ──────────────────────────────────────────────────────
+    async function clearPatient() {
+        await fetch("/api/clear", { method: "POST" });
+        currentPatient = null;
+        hasSig         = false;
+        lastUpdated    = null;
+        renderPatient(null);
+        renderSig(null);
+    }
+
+    // ── Save & Print Labels ───────────────────────────────────────────────
+    async function savePatient() {
+        const btn = document.getElementById("saveBtn");
+        btn.disabled    = true;
+        btn.textContent = "Saving...";
+
+        const payload = {
+            ...currentPatient,
+            corporate_name: document.getElementById("corporate_name").value.trim(),
+            test_to_order:  document.getElementById("test_to_order").value.trim(),
+            clinic_hci:     document.getElementById("clinic_hci").value.trim(),
+            doctor_mcr:     document.getElementById("doctor_mcr").value.trim(),
+            doctor_name:    document.getElementById("doctor_name").value.trim(),
+        };
+
+        try {
+            const resp = await fetch("/api/save", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify(payload),
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.error || "Save failed");
+            }
+
+            const sheetsOk = resp.headers.get("X-Sheets-Status") === "ok";
+
+            // Open label PDF for printing
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const win  = window.open(url, "_blank");
+            if (win) {
+                win.addEventListener("load", () => win.print());
+            } else {
+                // Fallback if popup blocked
+                const a = document.createElement("a");
+                a.href = url; a.download = "labels.pdf"; a.click();
+            }
+
+            showStatus(
+                sheetsOk
+                    ? "Saved! Labels sent to printer. Google Sheet updated."
+                    : "Saved! Labels printed. (Google Sheet error — check settings)",
+                sheetsOk ? "success" : "warning"
+            );
+
+            // State cleared server-side — reset UI
+            currentPatient = null;
+            hasSig         = false;
+            lastUpdated    = null;
+            renderPatient(null);
+            renderSig(null);
+
+        } catch (err) {
+            showStatus("Error: " + err.message, "error");
+            btn.disabled = false;
+        } finally {
+            btn.textContent = "Save & Print Labels";
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function showStatus(msg, type) {
+        const el = document.getElementById("status");
+        el.textContent = msg;
+        el.className   = "status " + type;
+        el.classList.remove("hidden");
+        setTimeout(() => el.classList.add("hidden"), 8000);
+    }
+
+    function esc(str) {
+        return String(str || "—")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    }
+</script>
+</body>
+</html>

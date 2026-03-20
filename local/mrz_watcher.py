@@ -17,8 +17,7 @@ import os
 import sys
 import time
 import json
-import webbrowser
-from urllib.parse import urlencode
+import requests
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -26,8 +25,8 @@ from watchdog.events import FileSystemEventHandler
 # Folder where the MRZ scanner saves .txt files
 WATCH_FOLDER = os.environ.get("MRZ_WATCH_FOLDER", r"C:\MRZ_Scans")
 
-# URL of your hosted web app
-APP_URL = os.environ.get("APP_URL", "http://localhost:5000")
+# URL of the local Station 1 app (local_app.py)
+LOCAL_APP_URL = os.environ.get("LOCAL_APP_URL", "http://localhost:5001")
 
 # ── MRZ Parser ─────────────────────────────────────────────────────────────
 
@@ -192,11 +191,18 @@ class MrzFileHandler(FileSystemEventHandler):
         if parsed:
             print(f"[MRZ] Parsed: {json.dumps(parsed, indent=2)}")
 
-            # Open browser with pre-filled data
-            params = urlencode({k: v for k, v in parsed.items() if v})
-            url = f"{APP_URL}?{params}"
-            print(f"[MRZ] Opening: {url}")
-            webbrowser.open(url)
+            # Send to local Station 1 app — browser tab updates automatically
+            try:
+                resp = requests.post(
+                    f"{LOCAL_APP_URL}/api/mrz",
+                    json=parsed,
+                    timeout=5,
+                )
+                resp.raise_for_status()
+                print(f"[MRZ] Sent to local app at {LOCAL_APP_URL}")
+            except Exception as e:
+                print(f"[MRZ] ERROR: Could not reach local app ({e})")
+                print(f"[MRZ]        Is local_app.py running on {LOCAL_APP_URL}?")
         else:
             print(f"[MRZ] Could not parse file. Please enter data manually.")
 
@@ -208,7 +214,7 @@ def main():
         print(f"[MRZ] Created watch folder: {WATCH_FOLDER}")
 
     print(f"[MRZ] Watching folder: {WATCH_FOLDER}")
-    print(f"[MRZ] Web app URL: {APP_URL}")
+    print(f"[MRZ] Local app URL: {LOCAL_APP_URL}")
     print(f"[MRZ] Waiting for passport scans...")
     print(f"[MRZ] Press Ctrl+C to stop.\n")
 
